@@ -35,7 +35,6 @@ class _SettingsPageState extends State<SettingsPage> {
 
   @override
   void initState() {
-    // Initialize state variables and perform any setup here
     super.initState();
     _loadThemePreference();
     _loadUser();
@@ -101,6 +100,7 @@ class _SettingsPageState extends State<SettingsPage> {
               ));
   }
 
+  //Creates a switch widget to toggle between light and dark theme.
   Row themeSwitcherBuilder() {
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
@@ -142,12 +142,14 @@ class _SettingsPageState extends State<SettingsPage> {
     });
   }
 
+  //Loads the current firebase user.
   Future<void> _loadUser() async {
     _user = await getFirestoreUser(getFCC().firebaseUser);
     if (!mounted) return;
     setState(() {});
   }
 
+  //Image picker to change profile picture for the user.
   Future<void> _changePicture() async {
     final imagePicker = ImagePicker();
     final pickedFile = await imagePicker.pickImage(
@@ -197,6 +199,7 @@ class ProfilePage extends StatefulWidget {
 }
 
 class _ProfilePageState extends State<ProfilePage> {
+  //Image picker to change profile picture for the user.
   Future<void> _changePicture() async {
     final imagePicker = ImagePicker();
     final pickedFile = await imagePicker.pickImage(
@@ -233,6 +236,7 @@ class _ProfilePageState extends State<ProfilePage> {
     }
   }
 
+  //Modal sheet that lets the user change its first or last name.
   void editName(String field) {
     bool editable = true;
     final controller = InputTextFieldController();
@@ -331,6 +335,7 @@ class _ProfilePageState extends State<ProfilePage> {
         });
   }
 
+  //Modal sheet that lets the user change its email.
   void editEmail() {
     final emailController = InputTextFieldController();
     final passwordController = InputTextFieldController();
@@ -513,6 +518,7 @@ class _ProfilePageState extends State<ProfilePage> {
         });
   }
 
+  //Modal sheet that lets the user change its password.
   void editPassword() {
     final newPasswordController = InputTextFieldController();
     final oldPasswordController = InputTextFieldController();

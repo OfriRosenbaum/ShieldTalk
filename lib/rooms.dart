@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_chat_types/flutter_chat_types.dart' as types;
@@ -34,6 +35,7 @@ class _RoomsPageState extends State<RoomsPage> {
     initializeFlutterFire();
     _theme = widget.theme;
     super.initState();
+    moveToChat();
   }
 
   void updateTheme(bool isDark) {
@@ -69,6 +71,24 @@ class _RoomsPageState extends State<RoomsPage> {
   void dispose() {
     _authStateSubscription?.cancel();
     super.dispose();
+  }
+
+  Future<void> moveToChat() async {
+    final FirebaseMessaging messaging = FirebaseMessaging.instance;
+    messaging.getInitialMessage().then((RemoteMessage? message) async {
+      if (message != null) {
+        final roomId = message.data['roomId'];
+        if (roomId == null) return;
+        final types.Room? room = await getRoom(roomId);
+        if (room == null) return;
+        // ignore: use_build_context_synchronously
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (context) => ChatPage(room: room, theme: _theme),
+          ),
+        );
+      }
+    });
   }
 
   @override

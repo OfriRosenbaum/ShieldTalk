@@ -149,6 +149,9 @@ Future<Uint8List> getPublicKey(String userId) async {
 Future<void> askForNotificationPermission() async {
   final FirebaseMessaging messaging = FirebaseMessaging.instance;
   await messaging.requestPermission();
+  FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
+    log('A new onMessageOpenedApp event was published!');
+  });
 }
 
 Future<types.User> getFirestoreUser(User? user) async {
@@ -173,7 +176,10 @@ Future<void> sendNotification(String roomId, String message) async {
         'title':
             'You have a new message from ${getUserName(await getFirestoreUser(FirebaseAuth.instance.currentUser))}',
         'body': message,
-      }
+      },
+      'data': {
+        'roomId': roomId,
+      },
     };
     var response = await post(Uri.parse('https://fcm.googleapis.com/fcm/send'),
         headers: {
@@ -209,6 +215,21 @@ Future<String> getTokenForUser(String userId) async {
     }
   }
   return '';
+}
+
+Future<types.Room?> getRoom(String roomId) async {
+  final fcc = getFCC();
+  final roomDoc = await fcc.getFirebaseFirestore().collection(fcc.config.roomsCollectionName).doc(roomId).get();
+  if (roomDoc.exists) {
+    final data = roomDoc.data();
+    if (data != null) {
+      data['createdAt'] = data['createdAt']?.millisecondsSinceEpoch;
+      data['id'] = roomDoc.id;
+      data['updatedAt'] = data['updatedAt']?.millisecondsSinceEpoch;
+      return types.Room.fromJson(data);
+    }
+  }
+  return null;
 }
 
 Future<String> getOtherUserId(String roomId, String currentUserId) {

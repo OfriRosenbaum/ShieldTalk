@@ -24,6 +24,7 @@ class UsersPageState extends State<UsersPage> {
   Map<String, types.Room> usersMap = {};
   final TextEditingController _searchController = TextEditingController();
   List<types.User> _users = [];
+  bool pressed = false;
 
   @override
   void initState() {
@@ -64,6 +65,7 @@ class UsersPageState extends State<UsersPage> {
   }
 
   void _handlePressed(types.User otherUser, BuildContext context) async {
+    pressed = true;
     final navigator = Navigator.of(context);
     if (usersMap.containsKey(otherUser.id)) {
       navigator.pop();
@@ -97,6 +99,7 @@ class UsersPageState extends State<UsersPage> {
           ),
         ),
       );
+      pressed = false;
     }
   }
 
@@ -136,7 +139,7 @@ class UsersPageState extends State<UsersPage> {
                     final user = _users[index];
                     return GestureDetector(
                       onTap: () {
-                        _handlePressed(user, context);
+                        pressed ? () => {} : _handlePressed(user, context);
                       },
                       child: Container(
                         padding: const EdgeInsets.symmetric(
@@ -156,74 +159,6 @@ class UsersPageState extends State<UsersPage> {
                     );
                   },
                 ),
-          // body: FutureBuilder<Stream<List<types.User>>>(
-          //     future: nonChatUsers(),
-          //     builder: (context, snapshot) {
-          //       if (!snapshot.hasData ||
-          //           snapshot.connectionState == ConnectionState.waiting ||
-          //           snapshot.connectionState == ConnectionState.active) {
-          //         return Container(
-          //           alignment: Alignment.center,
-          //           margin: const EdgeInsets.only(
-          //             bottom: 200,
-          //           ),
-          //           child: const CircularProgressIndicator(),
-          //         );
-          //       }
-          //       if (snapshot.connectionState == ConnectionState.done) {
-          //         return StreamBuilder<List<types.User>>(
-          //           stream: snapshot.data!,
-          //           initialData: const [],
-          //           builder: (context, snapshot) {
-          //             if (!snapshot.hasData || snapshot.data!.isEmpty) {
-          //               return Container(
-          //                 alignment: Alignment.center,
-          //                 margin: const EdgeInsets.only(
-          //                   bottom: 200,
-          //                 ),
-          //                 child: const Text('No users'),
-          //               );
-          //             }
-          //             return ListView.builder(
-          //               itemCount: snapshot.data!.length,
-          //               itemBuilder: (context, index) {
-          //                 final user = snapshot.data![index];
-          //                 return GestureDetector(
-          //                   onTap: () {
-          //                     _handlePressed(user, context);
-          //                   },
-          //                   child: Container(
-          //                     padding: const EdgeInsets.symmetric(
-          //                       horizontal: 16,
-          //                       vertical: 8,
-          //                     ),
-          //                     child: Row(
-          //                       children: [
-          //                         ClipOval(child: buildAvatar(user, 20)),
-          //                         Container(
-          //                           padding: const EdgeInsets.only(left: 16),
-          //                         ),
-          //                         Text(getUserName(user)),
-          //                       ],
-          //                     ),
-          //                   ),
-          //                 );
-          //               },
-          //             );
-          //           },
-          //         );
-          //       }
-          //       return Container(
-          //         alignment: Alignment.center,
-          //         margin: const EdgeInsets.only(
-          //           bottom: 200,
-          //         ),
-          //         child: const CircularProgressIndicator(
-          //           value: 0.5,
-          //           color: Colors.red,
-          //         ),
-          //       );
-          //     }),
         ),
       );
 
