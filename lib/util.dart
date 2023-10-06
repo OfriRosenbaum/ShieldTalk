@@ -40,13 +40,13 @@ AndroidOptions _getAndroidOptions() => const AndroidOptions(
     );
 
 Future<Uint8List> _getPrivateKey() async {
-  log('${await _storage.containsKey(key: _key)}');
-  return base64Decode(await _storage.read(key: _key) ?? '');
+  log('${await _storage.containsKey(key: "$_key${FirebaseAuth.instance.currentUser!.uid}")}');
+  return base64Decode(await _storage.read(key: "$_key${FirebaseAuth.instance.currentUser!.uid}") ?? '');
 }
 
 Future<void> _savePrivateKey(String key) async {
   await _storage.write(
-    key: _key,
+    key: "$_key${FirebaseAuth.instance.currentUser!.uid}",
     value: key,
     iOptions: _getIOSOptions(),
     aOptions: _getAndroidOptions(),
