@@ -1,0 +1,30 @@
+{
+  "project_info": {
+    "project_number": "1062262915077",
+    "firebase_url": "https://shieldtalk-909ba-default-rtdb.firebaseio.com",
+    "project_id": "shieldtalk-909ba",
+    "storage_bucket": "shieldtalk-909ba.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1062262915077:android:41965748645c0f81e5dc6c",
+        "android_client_info": {
+          "package_name": "com.example.shield_talk"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAttkj7RXcGVI5Jyp031Tqgk6zhPKsh17g"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
