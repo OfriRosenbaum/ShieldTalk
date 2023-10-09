@@ -19,10 +19,12 @@ class ChatPage extends StatefulWidget {
     super.key,
     required this.room,
     required this.theme,
+    required this.callback,
   });
 
   final types.Room room;
   final ThemeData theme;
+  final Function callback;
 
   @override
   State<ChatPage> createState() => _ChatPageState();
@@ -113,6 +115,7 @@ class _ChatPageState extends State<ChatPage> {
         );
         sendNotification(widget.room.id, '📎 File');
         FirebaseChatCore.instance.sendMessage(message, widget.room.id);
+        widget.callback(widget.room.id, 'You: 📎 File');
         updateLastMessage(message, widget.room.id, FirebaseChatCore.instance.firebaseUser!.uid);
         _setAttachmentUploading(false);
       } finally {
@@ -153,6 +156,7 @@ class _ChatPageState extends State<ChatPage> {
           message,
           widget.room.id,
         );
+        widget.callback(widget.room.id, 'You: 📷 Image');
         updateLastMessage(message, widget.room.id, FirebaseChatCore.instance.firebaseUser!.uid);
         _setAttachmentUploading(false);
       } finally {
@@ -232,6 +236,7 @@ class _ChatPageState extends State<ChatPage> {
       newMessage,
       widget.room.id,
     );
+    widget.callback(widget.room.id, 'You: ${message.text}');
     updateLastMessage(newMessage, widget.room.id, FirebaseChatCore.instance.firebaseUser!.uid);
   }
 

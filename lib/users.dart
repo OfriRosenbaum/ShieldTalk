@@ -13,8 +13,9 @@ import 'util.dart';
 
 class UsersPage extends StatefulWidget {
   final ThemeData theme;
+  final Function roomsCallback;
 
-  const UsersPage({super.key, required this.theme});
+  const UsersPage({super.key, required this.theme, required this.roomsCallback});
 
   @override
   State<UsersPage> createState() => UsersPageState();
@@ -63,20 +64,25 @@ class UsersPageState extends State<UsersPage> {
     final navigator = Navigator.of(context);
     final room = await FirebaseChatCore.instance.createRoom(otherUser);
     final fcc = getFCC();
-    Map<String, dynamic> roomKey = {};
-    Uint8List symmetricKey = await NativeCommunication.generateSymmetricKey();
-    roomKey[otherUser.id] =
-        base64Encode(await NativeCommunication.encryptKey(symmetricKey, await getPublicKey(otherUser.id)));
-    final currentUserId = fcc.firebaseUser!.uid;
-    roomKey[currentUserId] =
-        base64Encode(await NativeCommunication.encryptKey(symmetricKey, await getPublicKey(currentUserId)));
-    fcc.getFirebaseFirestore().collection(fcc.config.roomsCollectionName).doc(room.id).update({'roomKey': roomKey});
+    fcc.getFirebaseFirestore().collection(fcc.config.roomsCollectionName).doc(room.id).get().then((value) async {
+      if (value.data()!['roomKey'] == null) {
+        Map<String, dynamic> roomKey = {};
+        Uint8List symmetricKey = await NativeCommunication.generateSymmetricKey();
+        roomKey[otherUser.id] =
+            base64Encode(await NativeCommunication.encryptKey(symmetricKey, await getPublicKey(otherUser.id)));
+        final currentUserId = fcc.firebaseUser!.uid;
+        roomKey[currentUserId] =
+            base64Encode(await NativeCommunication.encryptKey(symmetricKey, await getPublicKey(currentUserId)));
+        fcc.getFirebaseFirestore().collection(fcc.config.roomsCollectionName).doc(room.id).update({'roomKey': roomKey});
+      }
+    });
     navigator.pop();
     await navigator.push(
       MaterialPageRoute(
         builder: (context) => ChatPage(
           room: room,
           theme: widget.theme,
+          callback: widget.roomsCallback,
         ),
       ),
     );

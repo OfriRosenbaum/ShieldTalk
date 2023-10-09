@@ -114,6 +114,12 @@ class _RoomsPageState extends State<RoomsPage> {
     });
   }
 
+  void lastMessageCallback(String roomId, String lastMessage) {
+    setState(() {
+      _lastMessages[roomId] = lastMessage;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_error) {
@@ -151,7 +157,7 @@ class _RoomsPageState extends State<RoomsPage> {
                           if (value == 0) {
                             Navigator.of(context).push(
                               MaterialPageRoute(
-                                builder: (context) => UsersPage(theme: _theme),
+                                builder: (context) => UsersPage(theme: _theme, roomsCallback: getLastMessages),
                               ),
                             );
                           } else if (value == 1) {
@@ -195,7 +201,8 @@ class _RoomsPageState extends State<RoomsPage> {
                               onTap: () {
                                 Navigator.of(context).push(
                                   MaterialPageRoute(
-                                    builder: (context) => ChatPage(room: room, theme: _theme),
+                                    builder: (context) =>
+                                        ChatPage(room: room, theme: _theme, callback: lastMessageCallback),
                                   ),
                                 );
                               },
