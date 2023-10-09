@@ -224,6 +224,9 @@ class _RoomsPageState extends State<RoomsPage> {
                                                 crossAxisAlignment: CrossAxisAlignment.start,
                                                 children: [
                                                   Text(room.name ?? '', style: const TextStyle(fontSize: 16)),
+                                                  Container(
+                                                    padding: const EdgeInsets.only(left: 8),
+                                                  ),
                                                   Text(_lastMessages[room.id] ?? '',
                                                       overflow: TextOverflow.ellipsis,
                                                       style: const TextStyle(fontSize: 16))
