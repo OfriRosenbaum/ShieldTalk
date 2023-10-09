@@ -196,7 +196,8 @@ class _LoginPageState extends State<LoginPage> {
                         : () {
                             Navigator.of(context).push(
                               MaterialPageRoute(
-                                builder: (context) => RegisterPage(theme: widget.theme),
+                                builder: (context) =>
+                                    RegisterPage(theme: widget.theme, email: _usernameController!.value.text),
                               ),
                             );
                           },

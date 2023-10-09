@@ -40,13 +40,13 @@ AndroidOptions _getAndroidOptions() => const AndroidOptions(
     );
 
 Future<Uint8List> _getPrivateKey() async {
-  log('${await _storage.containsKey(key: "$_key${FirebaseAuth.instance.currentUser!.uid}")}');
-  return base64Decode(await _storage.read(key: "$_key${FirebaseAuth.instance.currentUser!.uid}") ?? '');
+  log('${await _storage.containsKey(key: "$_key-${FirebaseAuth.instance.currentUser!.uid}")}');
+  return base64Decode(await _storage.read(key: "$_key-${FirebaseAuth.instance.currentUser!.uid}") ?? '');
 }
 
 Future<void> _savePrivateKey(String key) async {
   await _storage.write(
-    key: "$_key${FirebaseAuth.instance.currentUser!.uid}",
+    key: "$_key-${FirebaseAuth.instance.currentUser!.uid}",
     value: key,
     iOptions: _getIOSOptions(),
     aOptions: _getAndroidOptions(),
@@ -168,17 +168,18 @@ Future<types.User> getFirestoreUser(User? user) async {
 
 Future<void> sendNotification(String roomId, String message) async {
   try {
+    final currentUser = await getFirestoreUser(FirebaseAuth.instance.currentUser);
     final String recipient =
         await getTokenForUser(await getOtherUserId(roomId, FirebaseAuth.instance.currentUser!.uid));
     final body = {
       'to': recipient,
       'notification': {
-        'title':
-            'You have a new message from ${getUserName(await getFirestoreUser(FirebaseAuth.instance.currentUser))}',
+        'title': 'You have a new message from ${getUserName(currentUser)}',
         'body': message,
       },
       'data': {
         'roomId': roomId,
+        'firstName': currentUser.firstName,
       },
     };
     var response = await post(Uri.parse('https://fcm.googleapis.com/fcm/send'),
@@ -192,6 +193,77 @@ Future<void> sendNotification(String roomId, String message) async {
   } catch (e) {
     log('$e');
   }
+}
+
+String getChatTime(int timestamp) {
+  final date = DateTime.fromMillisecondsSinceEpoch(timestamp);
+  final now = DateTime.now();
+  final difference = now.difference(date);
+  if (now.day == date.day && difference.inDays == 0) {
+    if (date.minute < 10) {
+      return '${date.hour}:0${date.minute}';
+    }
+    return '${date.hour}:${date.minute}';
+  }
+  return '${date.day}/${date.month}/${date.year}';
+}
+
+Future<String> getLastMessage(String roomId) async {
+  final fcc = getFCC();
+  log('started last message');
+  final Map<String, dynamic> lastMessage = {};
+  await fcc.getFirebaseFirestore().collection(fcc.config.roomsCollectionName).doc(roomId).get().then((value) {
+    final data = value.data();
+    if (data != null) {
+      if (data['lastMessage'] == null) return 'a';
+      lastMessage['authorId'] = data['lastMessage']['authorId'];
+      lastMessage['type'] = data['lastMessage']['type'];
+      lastMessage['text'] = data['lastMessage']['text'];
+    }
+  });
+  String text;
+  String type = lastMessage['type'] as String;
+  if (type == 'text') {
+    text = await NativeCommunication.decryptMessage(await getRoomKey(roomId), lastMessage['text'] as String);
+  } else {
+    if (type == 'image') {
+      text = '📷 Image';
+    } else {
+      if (type == 'file') {
+        text = '📎 File';
+      } else {
+        text = 'Unknown message';
+      }
+    }
+  }
+  if (lastMessage['authorId'] == FirebaseAuth.instance.currentUser!.uid) {
+    return 'You: $text';
+  }
+  String firstName = await fcc
+      .getFirebaseFirestore()
+      .collection(fcc.config.usersCollectionName)
+      .doc(lastMessage['authorId'])
+      .get()
+      .then((value) {
+    final data = value.data();
+    if (data != null) {
+      return data['firstName'];
+    }
+    return '';
+  });
+  return '$firstName: $text';
+}
+
+Future<Uint8List> getRoomKey(String roomId) async {
+  final fcc = getFCC();
+  var keyMap = await fcc
+      .getFirebaseFirestore()
+      .collection(fcc.config.roomsCollectionName)
+      .doc(roomId)
+      .get()
+      .then((value) => value.data()!['roomKey']);
+  var key = base64Decode(keyMap != null ? keyMap[fcc.firebaseUser!.uid] : '');
+  return NativeCommunication.decryptKey(key);
 }
 
 //Gets the user ids of users in a room
@@ -217,21 +289,6 @@ Future<String> getTokenForUser(String userId) async {
   return '';
 }
 
-Future<types.Room?> getRoom(String roomId) async {
-  final fcc = getFCC();
-  final roomDoc = await fcc.getFirebaseFirestore().collection(fcc.config.roomsCollectionName).doc(roomId).get();
-  if (roomDoc.exists) {
-    final data = roomDoc.data();
-    if (data != null) {
-      data['createdAt'] = data['createdAt']?.millisecondsSinceEpoch;
-      data['id'] = roomDoc.id;
-      data['updatedAt'] = data['updatedAt']?.millisecondsSinceEpoch;
-      return types.Room.fromJson(data);
-    }
-  }
-  return null;
-}
-
 Future<String> getOtherUserId(String roomId, String currentUserId) {
   return getUserIdsInRoom(roomId).then((value) => value.firstWhere((element) => element != currentUserId));
 }
@@ -246,18 +303,10 @@ class NativeCommunication {
   static const MethodChannel _channel = MethodChannel('com.shieldtalk/security_channel');
 
   static Future<String> generateKeys() async {
-    var keys = await _channel.invokeMethod('generateKeys'); //check type
     try {
-      if (keys[0] is String) {
-        await _savePrivateKey(keys[0]);
-      } else {
-        log("generateKeys: Key generation failed. Private key is not String.");
-      }
-      if (keys[1] is String) {
-        return keys[1];
-      } else {
-        log("generateKeys: Key generation failed. Public key is not String.");
-      }
+      var keys = await _channel.invokeMethod('generateKeys');
+      await _savePrivateKey(keys[0]).then((value) => log('Saved private key'));
+      return keys[1];
     } on PlatformException catch (e) {
       log('${e.message} from generateKeys()');
     }
@@ -266,11 +315,7 @@ class NativeCommunication {
 
   static Future<String> decryptMessage(Uint8List key, String message) async {
     try {
-      Uint8List privateKey = await _getPrivateKey();
-      log('decryptMessage: Private key: ${privateKey.toString()}');
       final String decryptedMessage = await _channel.invokeMethod('decryptMessage', {'key': key, 'message': message});
-      log('decryptMessage: Message to decrypt: $message using key $key');
-      log('decryptMessage: Message decrypted: $decryptedMessage');
       return decryptedMessage;
     } on PlatformException catch (e) {
       log('${e.message} from decryptMessage()');
@@ -281,24 +326,20 @@ class NativeCommunication {
   static Future<Uint8List> generateSymmetricKey() async {
     try {
       final Uint8List key = await _channel.invokeMethod('generateSymmetricKey');
-      log('generateSymmetricKey: Symmetric key generated: ${key.toString()}');
       return key;
     } on PlatformException catch (e) {
-      log('${e.message} from generateSymmetricKey()');
+      log('$e from generateSymmetricKey()');
       return Uint8List(0);
     }
   }
 
   static Future<Uint8List> encryptKey(Uint8List keyToEncrypt, Uint8List publicKey) async {
     try {
-      log('encryptKey: Key encription public key: ${publicKey.toString()}');
-      log('encryptKey: Key encription key to encrypt: ${keyToEncrypt.toString()}');
       final Uint8List encryptedKey =
           await _channel.invokeMethod('encryptKey', {'keyToEncrypt': keyToEncrypt, 'publicKey': publicKey});
-      log('encryptKey: Key encrypted: ${encryptedKey.toString()}');
       return encryptedKey;
     } on PlatformException catch (e) {
-      log('${e.message} from encryptKey()');
+      log('$e from encryptKey()');
       return Uint8List(0);
     }
   }
@@ -306,11 +347,9 @@ class NativeCommunication {
   static Future<Uint8List> decryptKey(Uint8List key) async {
     try {
       Uint8List privateKey = await _getPrivateKey();
-      log('decryptKey: Key to encrypt $key');
-      log('decryptKey: Using private key $privateKey');
       return await _channel.invokeMethod('decryptKey', {'keyToDecrypt': key, 'privateKey': privateKey});
     } on PlatformException catch (e) {
-      log('${e.message} from decryptKey()');
+      log('$e from decryptKey()');
       return Uint8List(0);
     }
   }
@@ -318,11 +357,9 @@ class NativeCommunication {
   static Future<String> encryptMessage(Uint8List key, String message) async {
     try {
       final String encryptedMessage = await _channel.invokeMethod('encryptMessage', {'key': key, 'message': message});
-      log('encryptMessage: Message to encrypt: $message using key $key');
-      log('encryptMessage: Message encrypted: $encryptedMessage');
       return encryptedMessage;
     } on PlatformException catch (e) {
-      log('${e.message} from encryptMessage()');
+      log('$e from encryptMessage()');
       return '';
     }
   }

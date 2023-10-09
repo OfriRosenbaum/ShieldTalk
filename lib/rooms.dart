@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:developer';
 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
@@ -27,15 +28,17 @@ class _RoomsPageState extends State<RoomsPage> {
   bool _error = false;
   bool _initialized = false;
   User? _user;
+  Map<String, String> _lastMessages = {};
   StreamSubscription<User?>? _authStateSubscription;
   late ThemeData _theme;
 
   @override
   void initState() {
+    super.initState();
     initializeFlutterFire();
     _theme = widget.theme;
-    super.initState();
-    moveToChat();
+    getLastMessages();
+    updateChat();
   }
 
   void updateTheme(bool isDark) {
@@ -73,21 +76,41 @@ class _RoomsPageState extends State<RoomsPage> {
     super.dispose();
   }
 
-  Future<void> moveToChat() async {
-    final FirebaseMessaging messaging = FirebaseMessaging.instance;
-    messaging.getInitialMessage().then((RemoteMessage? message) async {
-      if (message != null) {
-        final roomId = message.data['roomId'];
-        if (roomId == null) return;
-        final types.Room? room = await getRoom(roomId);
-        if (room == null) return;
-        // ignore: use_build_context_synchronously
-        Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (context) => ChatPage(room: room, theme: _theme),
-          ),
-        );
+  //Edits the map so each key is a room id and each value is the last message in the room
+  Future<void> getLastMessages() async {
+    final fcc = getFCC();
+    while (_user == null) {
+      await Future.delayed(const Duration(seconds: 1));
+    }
+    try {
+      Map<String, String> lastMessages = {};
+      final query = await fcc
+          .getFirebaseFirestore()
+          .collection(fcc.config.roomsCollectionName)
+          .where('userIds', arrayContains: _user!.uid)
+          .get();
+      List<String> roomIds = query.docs.map((e) => e.id).toList();
+      for (String roomId in roomIds) {
+        log(roomId);
+        lastMessages[roomId] = await getLastMessage(roomId);
       }
+      setState(() {
+        _lastMessages = lastMessages;
+      });
+    } catch (e) {
+      log('getLastMessages(): Error: $e');
+    }
+  }
+
+  Future<void> updateChat() async {
+    FirebaseMessaging.onMessage.listen((RemoteMessage message) async {
+      if (message.notification == null) return;
+      final roomId = message.data['roomId'];
+      if (roomId == null) return;
+      setState(() {
+        _lastMessages[roomId] =
+            message.notification!.body != null ? message.data['firstName'] + ': ' + message.notification!.body! : '';
+      });
     });
   }
 
@@ -152,7 +175,7 @@ class _RoomsPageState extends State<RoomsPage> {
                       title: const Text('Rooms'),
                     ),
                     body: StreamBuilder<List<types.Room>>(
-                      stream: FirebaseChatCore.instance.rooms(),
+                      stream: FirebaseChatCore.instance.rooms(orderByUpdatedAt: true),
                       initialData: const [],
                       builder: (context, snapshot) {
                         if (!snapshot.hasData || snapshot.data!.isEmpty) {
@@ -183,11 +206,30 @@ class _RoomsPageState extends State<RoomsPage> {
                                 ),
                                 child: Row(
                                   children: [
-                                    ClipOval(child: getChatImage(room, 20)),
+                                    ClipOval(child: getChatImage(room, 32)),
                                     Container(
                                       padding: const EdgeInsets.only(left: 16),
                                     ),
-                                    Text(room.name ?? ''),
+                                    Expanded(
+                                        child: _lastMessages[room.id] == null
+                                            ? Text(room.name ?? '', style: const TextStyle(fontSize: 16))
+                                            : Column(
+                                                crossAxisAlignment: CrossAxisAlignment.start,
+                                                children: [
+                                                  Text(room.name ?? '', style: const TextStyle(fontSize: 16)),
+                                                  Text(_lastMessages[room.id] ?? '',
+                                                      overflow: TextOverflow.ellipsis,
+                                                      style: const TextStyle(fontSize: 16))
+                                                ],
+                                              )),
+                                    Container(
+                                      padding: const EdgeInsets.only(left: 8),
+                                    ),
+                                    Text(room.updatedAt == null ? '' : getChatTime(room.updatedAt!),
+                                        style: const TextStyle(fontSize: 16, color: Colors.grey)),
+                                    Container(
+                                      padding: const EdgeInsets.only(left: 16),
+                                    ),
                                   ],
                                 ),
                               ),

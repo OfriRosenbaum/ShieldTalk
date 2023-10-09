@@ -10,7 +10,6 @@ import io.flutter.plugin.common.MethodChannel;
 
 import javax.crypto.Cipher;
 import javax.crypto.KeyGenerator;
-import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
 
 import java.io.IOException;
@@ -47,7 +46,7 @@ public class MainActivity extends FlutterActivity {
                                     result.success(generateKeys());
                                     break;
                                 case "decryptKey":
-                                    result.success(decryptKeyCopy(call.argument("keyToDecrypt"), call.argument("privateKey")));
+                                    result.success(decryptKey(call.argument("keyToDecrypt"), call.argument("privateKey")));
                                     break;
                                 case "generateSymmetricKey":
                                     try {
@@ -57,19 +56,7 @@ public class MainActivity extends FlutterActivity {
                                     }
                                     break;
                                 case "encryptMessage":
-                                    try {
                                         result.success(encryptMessage(call.argument("key"), call.argument("message")));
-                                    } catch (UnrecoverableKeyException e) {
-                                        result.success(e.toString());
-                                    } catch (CertificateException e) {
-                                        result.success(e.toString());
-                                    } catch (KeyStoreException e) {
-                                        result.success(e.toString());
-                                    } catch (NoSuchAlgorithmException e) {
-                                        result.success(e.toString());
-                                    } catch (IOException e) {
-                                        result.success(e.toString());
-                                    }
                                     break;
                                 default:
                                     result.notImplemented();
@@ -86,7 +73,7 @@ public class MainActivity extends FlutterActivity {
         }
     }
 
-    private String encryptMessage(byte[] encryptionKey, String messageToEncrypt) throws UnrecoverableKeyException, CertificateException, KeyStoreException, NoSuchAlgorithmException, IOException {
+    private String encryptMessage(byte[] encryptionKey, String messageToEncrypt) {
         try {
             Cipher cipher = Cipher.getInstance(AES_ALGORITHM);
             cipher.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(encryptionKey, SYMMETRIC_KEY_ALGORITHM));
@@ -97,7 +84,7 @@ public class MainActivity extends FlutterActivity {
             return new String(plainText);
         } catch (Exception e) {
             e.printStackTrace();
-            return e + ", Private key is null";
+            return e.toString();
         }
     }
 
@@ -111,6 +98,7 @@ public class MainActivity extends FlutterActivity {
             }
             return new String(plainText);
         } catch (Exception e) {
+            e.printStackTrace();
             return e.toString();
         }
     }
@@ -127,19 +115,7 @@ public class MainActivity extends FlutterActivity {
         return new byte[]{};
     }
 
-    private SecretKey decryptKey(byte[] keyToDecrypt, byte[] privateKey) {
-        try {
-            PrivateKey key = getPrivateKey(privateKey);
-            Cipher cipher = Cipher.getInstance(RSA_ALGORITHM);
-            cipher.init(Cipher.DECRYPT_MODE, key);
-            return new SecretKeySpec(cipher.doFinal(keyToDecrypt), SYMMETRIC_KEY_ALGORITHM);
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-        return null;
-    }
-
-    private byte[] decryptKeyCopy(byte[] keyToDecrypt, byte[] privateKey) {
+    private byte[] decryptKey(byte[] keyToDecrypt, byte[] privateKey) {
         try {
             PrivateKey key = getPrivateKey(privateKey);
             Cipher cipher = Cipher.getInstance(RSA_ALGORITHM);

@@ -21,7 +21,6 @@ class UsersPage extends StatefulWidget {
 }
 
 class UsersPageState extends State<UsersPage> {
-  Map<String, types.Room> usersMap = {};
   final TextEditingController _searchController = TextEditingController();
   List<types.User> _users = [];
   bool pressed = false;
@@ -29,7 +28,6 @@ class UsersPageState extends State<UsersPage> {
   @override
   void initState() {
     super.initState();
-    getUserRooms();
     _searchUsers('');
   }
 
@@ -43,11 +41,7 @@ class UsersPageState extends State<UsersPage> {
     }
     try {
       final usersCollection = getFirebaseFirestore().collection(getFCC().config.usersCollectionName);
-      _users = await usersCollection
-          .where(FieldPath.documentId, isGreaterThanOrEqualTo: query)
-          // .where(FieldPath.documentId, isLessThan: '${query}z')
-          .get()
-          .then((snapshot) {
+      _users = await usersCollection.where(FieldPath.documentId, isGreaterThanOrEqualTo: query).get().then((snapshot) {
         return snapshot.docs.map((e) {
           final data = e.data();
           data['createdAt'] = data['createdAt']?.millisecondsSinceEpoch;
@@ -67,40 +61,26 @@ class UsersPageState extends State<UsersPage> {
   void _handlePressed(types.User otherUser, BuildContext context) async {
     pressed = true;
     final navigator = Navigator.of(context);
-    if (usersMap.containsKey(otherUser.id)) {
-      navigator.pop();
-      navigator.push(
-        MaterialPageRoute(
-          builder: (context) => ChatPage(
-            room: usersMap[otherUser.id]!,
-            theme: widget.theme,
-          ),
+    final room = await FirebaseChatCore.instance.createRoom(otherUser);
+    final fcc = getFCC();
+    Map<String, dynamic> roomKey = {};
+    Uint8List symmetricKey = await NativeCommunication.generateSymmetricKey();
+    roomKey[otherUser.id] =
+        base64Encode(await NativeCommunication.encryptKey(symmetricKey, await getPublicKey(otherUser.id)));
+    final currentUserId = fcc.firebaseUser!.uid;
+    roomKey[currentUserId] =
+        base64Encode(await NativeCommunication.encryptKey(symmetricKey, await getPublicKey(currentUserId)));
+    fcc.getFirebaseFirestore().collection(fcc.config.roomsCollectionName).doc(room.id).update({'roomKey': roomKey});
+    navigator.pop();
+    await navigator.push(
+      MaterialPageRoute(
+        builder: (context) => ChatPage(
+          room: room,
+          theme: widget.theme,
         ),
-      );
-    } else {
-      final room = await FirebaseChatCore.instance.createRoom(otherUser);
-      final fcc = getFCC();
-      Map<String, dynamic> roomKey = {};
-      Uint8List symmetricKey = await NativeCommunication.generateSymmetricKey();
-      roomKey[otherUser.id] =
-          base64Encode(await NativeCommunication.encryptKey(symmetricKey, await getPublicKey(otherUser.id)));
-      final currentUserId = fcc.firebaseUser!.uid;
-      roomKey[currentUserId] =
-          base64Encode(await NativeCommunication.encryptKey(symmetricKey, await getPublicKey(currentUserId)));
-      developer.log('Other user key length: ${roomKey[otherUser.id]!.length}');
-      developer.log('Current user key length: ${roomKey[currentUserId]!.length}');
-      fcc.getFirebaseFirestore().collection(fcc.config.roomsCollectionName).doc(room.id).update({'roomKey': roomKey});
-      navigator.pop();
-      await navigator.push(
-        MaterialPageRoute(
-          builder: (context) => ChatPage(
-            room: room,
-            theme: widget.theme,
-          ),
-        ),
-      );
-      pressed = false;
-    }
+      ),
+    );
+    pressed = false;
   }
 
   @override
@@ -202,21 +182,6 @@ class UsersPageState extends State<UsersPage> {
     } catch (e) {
       developer.log('Error: $e');
       return const Stream.empty();
-    }
-  }
-
-  //Edits the map so each key is a user id and each value is a room with the current user and the user with the key
-  Future<void> getUserRooms() async {
-    try {
-      Stream<List<types.Room>> roomsStream = getFCC().rooms();
-      if (await roomsStream.isEmpty) return;
-      List<types.Room> rooms = await roomsStream.first;
-      for (final room in rooms) {
-        final otherUser = room.users.firstWhere((element) => element.id != getFCC().firebaseUser!.uid);
-        usersMap[otherUser.id] = room;
-      }
-    } catch (e) {
-      developer.log('Error: $e');
     }
   }
 

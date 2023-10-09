@@ -7,8 +7,9 @@ import 'package:shield_talk/util.dart';
 
 class RegisterPage extends StatefulWidget {
   final ThemeData theme;
+  final String email;
 
-  const RegisterPage({super.key, required this.theme});
+  const RegisterPage({super.key, required this.theme, required this.email});
 
   @override
   State<RegisterPage> createState() => _RegisterPageState();
@@ -31,6 +32,7 @@ class _RegisterPageState extends State<RegisterPage> {
     _usernameController = TextEditingController();
     _firstNameController = TextEditingController();
     _lastNameController = TextEditingController();
+    _usernameController!.text = widget.email;
   }
 
   void _register() async {

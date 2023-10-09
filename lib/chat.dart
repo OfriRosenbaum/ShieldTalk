@@ -1,6 +1,4 @@
-import 'dart:convert';
 import 'dart:io';
-import 'dart:developer' as developer;
 
 import 'package:file_picker/file_picker.dart';
 import 'package:firebase_storage/firebase_storage.dart';
@@ -42,17 +40,7 @@ class _ChatPageState extends State<ChatPage> {
   }
 
   Future<void> setRoomKey() async {
-    final fcc = getFCC();
-    var keyMap = await fcc
-        .getFirebaseFirestore()
-        .collection(fcc.config.roomsCollectionName)
-        .doc(widget.room.id)
-        .get()
-        .then((value) => value.data()!['roomKey']);
-    var key = base64Decode(keyMap != null ? keyMap[fcc.firebaseUser!.uid] : '');
-    developer.log('Room key: $key');
-    Uint8List keyBytes = await NativeCommunication.decryptKey(key);
-    developer.log('Decrypted room key: $keyBytes');
+    Uint8List keyBytes = await getRoomKey(widget.room.id);
     setState(() {
       roomKey = keyBytes;
     });
@@ -125,6 +113,7 @@ class _ChatPageState extends State<ChatPage> {
         );
         sendNotification(widget.room.id, '📎 File');
         FirebaseChatCore.instance.sendMessage(message, widget.room.id);
+        updateLastMessage(message, widget.room.id, FirebaseChatCore.instance.firebaseUser!.uid);
         _setAttachmentUploading(false);
       } finally {
         _setAttachmentUploading(false);
@@ -164,6 +153,7 @@ class _ChatPageState extends State<ChatPage> {
           message,
           widget.room.id,
         );
+        updateLastMessage(message, widget.room.id, FirebaseChatCore.instance.firebaseUser!.uid);
         _setAttachmentUploading(false);
       } finally {
         _setAttachmentUploading(false);
@@ -233,7 +223,6 @@ class _ChatPageState extends State<ChatPage> {
   void _handleSendPressed(types.PartialText message) async {
     sendNotification(widget.room.id, message.text);
     String text = await NativeCommunication.encryptMessage(roomKey!, message.text);
-    developer.log('Message after encryption is $text, before encryption ${message.text}');
     types.PartialText newMessage = types.PartialText(
         metadata: message.metadata,
         previewData: message.previewData,
@@ -243,12 +232,38 @@ class _ChatPageState extends State<ChatPage> {
       newMessage,
       widget.room.id,
     );
+    updateLastMessage(newMessage, widget.room.id, FirebaseChatCore.instance.firebaseUser!.uid);
   }
 
   void _setAttachmentUploading(bool uploading) {
     setState(() {
       _isAttachmentUploading = uploading;
     });
+  }
+
+  void updateLastMessage(dynamic message, String roomId, String authorId) async {
+    final fcc = getFCC();
+    Map<String, dynamic> lastMessageMap = {};
+    if (message is types.PartialText) {
+      lastMessageMap['text'] = message.text;
+      lastMessageMap['type'] = 'text';
+    } else {
+      if (message is types.PartialImage) {
+        lastMessageMap['type'] = 'image';
+      } else {
+        if (message is types.PartialFile) {
+          lastMessageMap['type'] = 'file';
+        } else {
+          lastMessageMap['type'] = 'unknown';
+        }
+      }
+    }
+    lastMessageMap['authorId'] = authorId;
+    await fcc
+        .getFirebaseFirestore()
+        .collection(fcc.config.roomsCollectionName)
+        .doc(roomId)
+        .update({'lastMessage': lastMessageMap});
   }
 
   Stream<List<types.Message>> messages(
